@@ -1205,7 +1205,11 @@ function Transmog:availableTransmogs(InventorySlotId)
     
     -- Cache the item link once
     local inventoryLink = GetInventoryItemLink('player', InventorySlotId)
-    local _, _, eqItemLink = inventoryLink and TransmogFrame_Find(inventoryLink, "(item:%d+:%d+:%d+:%d+)") or nil, nil, nil
+    local eqItemLink
+    if inventoryLink then
+        local _, _, link = TransmogFrame_Find(inventoryLink, "(item:%d+:%d+:%d+:%d+)")
+        eqItemLink = link
+    end
 
     for i, itemID in self.transmogDataFromServer[InventorySlotId] do
         itemID = TransmogFrame_ToNumber(itemID)
@@ -2078,7 +2082,7 @@ function Transmog:tableSize(t)
     end
     -- Fallback to manual count for hash tables
     local size = 0
-    for _ in pairs(t) do
+    for k, v in pairs(t) do
         size = size + 1
     end
     return size
@@ -2522,7 +2526,7 @@ Transmog.applyTimer:SetScript("OnShow", function()
     Transmog.applyTimer.actionIndex = 0
 end)
 Transmog.applyTimer:SetScript("OnHide", function()
-    -- Clear actions table to prevent memory leak
+    -- Reset actions table to prevent memory leak
     Transmog.applyTimer.actions = {}
 end)
 
