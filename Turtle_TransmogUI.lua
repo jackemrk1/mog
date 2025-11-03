@@ -1264,20 +1264,26 @@ function Transmog:availableTransmogs(InventorySlotId)
             self.ItemButtons[itemIndex].name = item.name
             self.ItemButtons[itemIndex].id = item.id
 
-            getglobal('TransmogLook' .. itemIndex .. 'Button'):SetID(item.id)
-            getglobal('TransmogLook' .. itemIndex .. 'ButtonRevert'):Hide()
-            getglobal('TransmogLook' .. itemIndex .. 'ButtonCheck'):Hide()
+            -- Optimized: Cache getglobal results
+            local lookPrefix = 'TransmogLook' .. itemIndex
+            local button = getglobal(lookPrefix .. 'Button')
+            local buttonRevert = getglobal(lookPrefix .. 'ButtonRevert')
+            local buttonCheck = getglobal(lookPrefix .. 'ButtonCheck')
+            
+            button:SetID(item.id)
+            buttonRevert:Hide()
+            buttonCheck:Hide()
 
             if item.id == self.transmogStatusToServer[InventorySlotId] then
-                getglobal('TransmogLook' .. itemIndex .. 'Button'):SetNormalTexture('Interface\\TransmogFrame\\item_bg_selected')
+                button:SetNormalTexture('Interface\\TransmogFrame\\item_bg_selected')
             else
-                getglobal('TransmogLook' .. itemIndex .. 'Button'):SetNormalTexture('Interface\\TransmogFrame\\item_bg_normal')
+                button:SetNormalTexture('Interface\\TransmogFrame\\item_bg_normal')
             end
 
             local _, _, _, color = GetItemQualityColor(item.quality)
-            AddButtonOnEnterTextTooltip(getglobal('TransmogLook' .. itemIndex .. 'Button'), color .. item.name)
+            AddButtonOnEnterTextTooltip(button, color .. item.name)
             if item.reset then
-                getglobal('TransmogLook' .. itemIndex .. 'ButtonRevert'):Show()
+                buttonRevert:Show()
             end
 
             self.ItemButtons[itemIndex]:Show()
@@ -2301,9 +2307,15 @@ function Transmog_switchTab(to)
                 Transmog.ItemButtons[setIndex]:SetPoint("TOPLEFT", TransmogFrame, "TOPLEFT", 263 + col * 90, -105 - 120 * row)
                 Transmog.ItemButtons[setIndex].name = set.name
 
-                getglobal('TransmogLook' .. setIndex .. 'Button'):SetID(i)
-                getglobal('TransmogLook' .. setIndex .. 'ButtonRevert'):Hide()
-                getglobal('TransmogLook' .. setIndex .. 'ButtonCheck'):Hide()
+                -- Optimized: Cache getglobal results
+                local lookPrefix = 'TransmogLook' .. setIndex
+                local button = getglobal(lookPrefix .. 'Button')
+                local buttonRevert = getglobal(lookPrefix .. 'ButtonRevert')
+                local buttonCheck = getglobal(lookPrefix .. 'ButtonCheck')
+                
+                button:SetID(i)
+                buttonRevert:Hide()
+                buttonCheck:Hide()
 
                 Transmog.availableSets[i]['itemsExtended'] = Transmog.availableSets[i]['itemsExtended'] or {}
 
@@ -2342,11 +2354,11 @@ function Transmog_switchTab(to)
                 end
 
                 if founds == total then
-                    getglobal('TransmogLook' .. setIndex .. 'ButtonCheck'):Show()
+                    buttonCheck:Show()
                 end
 
                 AddButtonOnEnterTextTooltip(
-                    getglobal('TransmogLook' .. setIndex .. 'Button'),
+                    button,
                     set.name .. " " .. founds .. "/" .. total,
                     setItemsText
                 )
@@ -2510,6 +2522,8 @@ Transmog.applyTimer:SetScript("OnShow", function()
     Transmog.applyTimer.actionIndex = 0
 end)
 Transmog.applyTimer:SetScript("OnHide", function()
+    -- Clear actions table to prevent memory leak
+    Transmog.applyTimer.actions = {}
 end)
 
 Transmog.applyTimer.actions = {}
@@ -2580,6 +2594,9 @@ Transmog.itemAnimation:SetScript("OnHide", function()
     Transmog:aSend("GetTransmogStatus")
 
     Transmog:calculateCost(0)
+    
+    -- Clear animation frames to prevent memory leak
+    Transmog.itemAnimationFrames = {}
 end)
 
 Transmog.itemAnimationFrames = {}
@@ -2668,6 +2685,10 @@ Transmog.delayAddWonItem.data = {}
 
 Transmog.delayAddWonItem:SetScript("OnShow", function()
     this.startTime = GetTime()
+end)
+Transmog.delayAddWonItem:SetScript("OnHide", function()
+    -- Clear data table when hidden to prevent memory leak
+    Transmog.delayAddWonItem.data = {}
 end)
 Transmog.delayAddWonItem:SetScript("OnUpdate", function()
     local plus = 0.2
