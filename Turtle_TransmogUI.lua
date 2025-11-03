@@ -132,14 +132,17 @@ Transmog.itemCacheBuilder = CreateFrame("Frame")
 Transmog.itemCacheBuilder:Hide()
 Transmog.itemCacheBuilder:SetScript("OnUpdate", function()
     local budget = Transmog.maxItemCachePerFrame
-    while budget > 0 and table.getn(Transmog.itemCacheQueue) > 0 do
-        local id = table.remove(Transmog.itemCacheQueue, 1)
+    local queue = Transmog.itemCacheQueue
+    local queueSize = table.getn(queue)
+    while budget > 0 and queueSize > 0 do
+        local id = table.remove(queue, 1)
         if not GetItemInfo(id) then
             Transmog.CacheTooltip:SetHyperlink("item:" .. id .. ":0:0:0")
         end
         budget = budget - 1
+        queueSize = queueSize - 1
     end
-    if table.getn(Transmog.itemCacheQueue) == 0 then
+    if queueSize == 0 then
         this:Hide()
     end
 end)
@@ -300,8 +303,10 @@ Transmog.setsModelBuilder:SetScript("OnUpdate", function()
     end
 
     local budget = Transmog.maxSetModelsPerFrame or 3
-    while budget > 0 and table.getn(Transmog.setModelQueue) > 0 do
-        local job = table.remove(Transmog.setModelQueue, 1)
+    local queue = Transmog.setModelQueue
+    local queueSize = table.getn(queue)
+    while budget > 0 and queueSize > 0 do
+        local job = table.remove(queue, 1)
         local model = job.model
         local items = job.items
 
@@ -315,9 +320,10 @@ Transmog.setsModelBuilder:SetScript("OnUpdate", function()
         end
 
         budget = budget - 1
+        queueSize = queueSize - 1
     end
 
-    if table.getn(Transmog.setModelQueue) == 0 then
+    if queueSize == 0 then
         Transmog:ShowVisibleSetModels()
         this:Hide()
     end
@@ -427,8 +433,30 @@ C_INVTYPE_HOLDABLE = 23;
 C_INVTYPE_THROWN = 25;
 C_INVTYPE_RANGEDRIGHT = 26;
 
-function Transmog:slotIdToServerSlot(slotId)
+-- Optimized: Use lookup table instead of cascading if statements
+Transmog.invTypeToServerSlot = {
+    ['INVTYPE_HEAD'] = EQUIPMENT_SLOT_HEAD,
+    ['INVTYPE_SHOULDER'] = EQUIPMENT_SLOT_SHOULDERS,
+    ['INVTYPE_CLOAK'] = EQUIPMENT_SLOT_BACK,
+    ['INVTYPE_CHEST'] = EQUIPMENT_SLOT_CHEST,
+    ['INVTYPE_ROBE'] = EQUIPMENT_SLOT_CHEST,
+    ['INVTYPE_WAIST'] = EQUIPMENT_SLOT_WAIST,
+    ['INVTYPE_LEGS'] = EQUIPMENT_SLOT_LEGS,
+    ['INVTYPE_FEET'] = EQUIPMENT_SLOT_FEET,
+    ['INVTYPE_WRIST'] = EQUIPMENT_SLOT_WRISTS,
+    ['INVTYPE_HAND'] = EQUIPMENT_SLOT_HANDS,
+    ['INVTYPE_WEAPON'] = EQUIPMENT_SLOT_MAINHAND,
+    ['INVTYPE_SHIELD'] = EQUIPMENT_SLOT_OFFHAND,
+    ['INVTYPE_RANGED'] = EQUIPMENT_SLOT_RANGED,
+    ['INVTYPE_2HWEAPON'] = EQUIPMENT_SLOT_MAINHAND,
+    ['INVTYPE_WEAPONMAINHAND'] = EQUIPMENT_SLOT_MAINHAND,
+    ['INVTYPE_WEAPONOFFHAND'] = EQUIPMENT_SLOT_OFFHAND,
+    ['INVTYPE_HOLDABLE'] = EQUIPMENT_SLOT_OFFHAND,
+    ['INVTYPE_THROWN'] = EQUIPMENT_SLOT_RANGED,
+    ['INVTYPE_RANGEDRIGHT'] = EQUIPMENT_SLOT_RANGED,
+}
 
+function Transmog:slotIdToServerSlot(slotId)
     local itemType = 99
     if GetInventoryItemLink('player', slotId) then
         local itemName, _, _, _, _, _, _, it = GetItemInfo(self:IDFromLink(GetInventoryItemLink('player', slotId)))
@@ -440,72 +468,12 @@ function Transmog:slotIdToServerSlot(slotId)
         return EQUIPMENT_SLOT_OFFHAND
     end
 
-    if itemType == 'INVTYPE_HEAD' then
-        return EQUIPMENT_SLOT_HEAD
-    end
-    if itemType == 'INVTYPE_SHOULDER' then
-        return EQUIPMENT_SLOT_SHOULDERS
-    end
-    if itemType == 'INVTYPE_CLOAK' then
-        return EQUIPMENT_SLOT_BACK
-    end
-    if itemType == 'INVTYPE_CHEST' then
-        return EQUIPMENT_SLOT_CHEST
-    end
-    if itemType == 'INVTYPE_ROBE' then
-        return EQUIPMENT_SLOT_CHEST
-    end
-    if itemType == 'INVTYPE_WAIST' then
-        return EQUIPMENT_SLOT_WAIST
-    end
-    if itemType == 'INVTYPE_LEGS' then
-        return EQUIPMENT_SLOT_LEGS
-    end
-    if itemType == 'INVTYPE_FEET' then
-        return EQUIPMENT_SLOT_FEET
-    end
-    if itemType == 'INVTYPE_WRIST' then
-        return EQUIPMENT_SLOT_WRISTS
-    end
-    if itemType == 'INVTYPE_HAND' then
-        return EQUIPMENT_SLOT_HANDS
-    end
-    if itemType == 'INVTYPE_WEAPON' then
-        return EQUIPMENT_SLOT_MAINHAND
-    end
-    if itemType == 'INVTYPE_SHIELD' then
-        return EQUIPMENT_SLOT_OFFHAND
-    end
-    if itemType == 'INVTYPE_RANGED' then
-        return EQUIPMENT_SLOT_RANGED
-    end
-    if itemType == 'INVTYPE_2HWEAPON' then
-        return EQUIPMENT_SLOT_MAINHAND
-    end
-    if itemType == 'INVTYPE_WEAPONMAINHAND' then
-        return EQUIPMENT_SLOT_MAINHAND
+    -- Lookup in table - much faster than cascading if statements
+    local serverSlot = self.invTypeToServerSlot[itemType]
+    if serverSlot then
+        return serverSlot
     end
 
-    --if itemType == 'INVTYPE_BACK' then
-        --return EQUIPMENT_SLOT_BACK
-    --end
-
-    if itemType == 'INVTYPE_WEAPONOFFHAND' then
-        return EQUIPMENT_SLOT_OFFHAND
-    end
-    if itemType == 'INVTYPE_HOLDABLE' then
-        return EQUIPMENT_SLOT_OFFHAND
-    end
-
-    if itemType == 'INVTYPE_THROWN' then
-        return EQUIPMENT_SLOT_RANGED
-    end
-    if itemType == 'INVTYPE_RANGED' then
-        return EQUIPMENT_SLOT_RANGED
-    end
-    if itemType == 'INVTYPE_RANGEDRIGHT' then
-        return EQUIPMENT_SLOT_RANGED
-    end
     twfdebug('99 slotIdToServerSlot err = ' .. slotId)
     return 99
 end
@@ -605,9 +573,10 @@ end
                             local TransmogItemName = GetItemInfo(itemID)
 
                             if TransmogItemName then
-                                -- check if we actually have an item equipped
-                                if GetInventoryItemLink('player', InventorySlotId) then
-                                    local _, _, eqItemLink = TransmogFrame_Find(GetInventoryItemLink('player', InventorySlotId), "(item:%d+:%d+:%d+:%d+)");
+                                -- Optimized: Cache GetInventoryItemLink result
+                                local itemLink = GetInventoryItemLink('player', InventorySlotId)
+                                if itemLink then
+                                    local _, _, eqItemLink = TransmogFrame_Find(itemLink, "(item:%d+:%d+:%d+:%d+)");
                                     local eName = GetItemInfo(eqItemLink)
                                     SendAddonMessage("TW_CHAT_MSG_WHISPER<" .. from .. ">", "INSTransmogs:" .. eName .. ":" .. TransmogItemName, "GUILD")
                                 end
@@ -912,6 +881,8 @@ function Transmog:UpdateVisibleSetsOwnedCounters()
             local tileCheck = getglobal('TransmogLook' .. tileIndex .. 'ButtonCheck')
             if tileCheck then tileCheck:Hide() end
 
+            -- Optimized: Use table for string concatenation
+            local textParts = {}
             for _, itemID in next, (self.visibleSetsItemsMap and self.visibleSetsItemsMap[i] or set.items or {}) do
                 local has = self.ownedTransmogsPageTemp[itemID] == true
                 if has then founds = founds + 1 end
@@ -926,10 +897,12 @@ function Transmog:UpdateVisibleSetsOwnedCounters()
                         local _, link, quality, _, xt1, xt2, _, equip_slot, xtex = GetItemInfo(itemID)
                         set.itemsExtended[itemID] = { name = name, slot = equip_slot, tex = xtex, quality = quality or 0 }
                     end
-                    setItemsText = setItemsText ..
-                        (has and FONT_COLOR_CODE_CLOSE or GRAY_FONT_COLOR_CODE) ..
-                        name .. "\n"
+                    table.insert(textParts, (has and FONT_COLOR_CODE_CLOSE or GRAY_FONT_COLOR_CODE) .. name)
                 end
+            end
+            setItemsText = table.concat(textParts, "\n")
+            if setItemsText ~= "" then
+                setItemsText = setItemsText .. "\n"
             end
 
             if total > 0 and founds >= total and tileCheck then
@@ -961,10 +934,12 @@ function Transmog:UpdateVisibleSetsOwnedCounters()
     self:setProgressBar(self.completedSetsCache or 0, self:tableSize(self.availableSets or {}))
 end
 
+-- Optimized: Cache GetInventoryItemLink result to avoid duplicate calls
 function Transmog:EquippedItemsChanged()
     for _, InventorySlotId in self.inventorySlots do
-        if GetInventoryItemLink('player', InventorySlotId) then
-            local _, _, eqItemLink = TransmogFrame_Find(GetInventoryItemLink('player', InventorySlotId), "(item:%d+:%d+:%d+:%d+)");
+        local itemLink = GetInventoryItemLink('player', InventorySlotId)
+        if itemLink then
+            local _, _, eqItemLink = TransmogFrame_Find(itemLink, "(item:%d+:%d+:%d+:%d+)");
             if self.equippedItems[InventorySlotId] ~= self:IDFromLink(eqItemLink) then
                 return true
             end
@@ -975,8 +950,9 @@ end
 
 function Transmog:CacheEquippedGear()
     for _, InventorySlotId in self.inventorySlots do
-        if GetInventoryItemLink('player', InventorySlotId) then
-            self:cacheItem(GetInventoryItemLink('player', InventorySlotId))
+        local itemLink = GetInventoryItemLink('player', InventorySlotId)
+        if itemLink then
+            self:cacheItem(itemLink)
         end
     end
 end
@@ -1222,15 +1198,23 @@ Transmog.availableTransmogsCacheDelay:SetScript("OnUpdate", function()
     end
 end)
 
+-- Optimized: Cache GetInventoryItemLink outside loop
 function Transmog:availableTransmogs(InventorySlotId)
 
     self.availableTransmogItems[InventorySlotId] = {}
+    
+    -- Cache the item link once
+    local inventoryLink = GetInventoryItemLink('player', InventorySlotId)
+    local eqItemLink
+    if inventoryLink then
+        local _, _, link = TransmogFrame_Find(inventoryLink, "(item:%d+:%d+:%d+:%d+)")
+        eqItemLink = link
+    end
 
     for i, itemID in self.transmogDataFromServer[InventorySlotId] do
         itemID = TransmogFrame_ToNumber(itemID)
 
         local name, link, quality, _, xt1, xt2, _, equip_slot, xtex = GetItemInfo(itemID)
-        local _, _, eqItemLink = TransmogFrame_Find(GetInventoryItemLink('player', InventorySlotId), "(item:%d+:%d+:%d+:%d+)");
 
         if not name then
             self:cacheItem(itemID);
@@ -1256,8 +1240,10 @@ function Transmog:availableTransmogs(InventorySlotId)
         end
     end
 
-    self:setProgressBar(self:tableSize(self.transmogDataFromServer[InventorySlotId]), self.numTransmogs[InventorySlotId])
-    if self:tableSize(self.transmogDataFromServer[InventorySlotId]) == 0 then
+    -- Cache table size result
+    local dataSize = self:tableSize(self.transmogDataFromServer[InventorySlotId])
+    self:setProgressBar(dataSize, self.numTransmogs[InventorySlotId])
+    if dataSize == 0 then
         TransmogFrameNoTransmogs:Show()
     end
 
@@ -1282,20 +1268,26 @@ function Transmog:availableTransmogs(InventorySlotId)
             self.ItemButtons[itemIndex].name = item.name
             self.ItemButtons[itemIndex].id = item.id
 
-            getglobal('TransmogLook' .. itemIndex .. 'Button'):SetID(item.id)
-            getglobal('TransmogLook' .. itemIndex .. 'ButtonRevert'):Hide()
-            getglobal('TransmogLook' .. itemIndex .. 'ButtonCheck'):Hide()
+            -- Optimized: Cache getglobal results
+            local lookPrefix = 'TransmogLook' .. itemIndex
+            local button = getglobal(lookPrefix .. 'Button')
+            local buttonRevert = getglobal(lookPrefix .. 'ButtonRevert')
+            local buttonCheck = getglobal(lookPrefix .. 'ButtonCheck')
+            
+            button:SetID(item.id)
+            buttonRevert:Hide()
+            buttonCheck:Hide()
 
             if item.id == self.transmogStatusToServer[InventorySlotId] then
-                getglobal('TransmogLook' .. itemIndex .. 'Button'):SetNormalTexture('Interface\\TransmogFrame\\item_bg_selected')
+                button:SetNormalTexture('Interface\\TransmogFrame\\item_bg_selected')
             else
-                getglobal('TransmogLook' .. itemIndex .. 'Button'):SetNormalTexture('Interface\\TransmogFrame\\item_bg_normal')
+                button:SetNormalTexture('Interface\\TransmogFrame\\item_bg_normal')
             end
 
             local _, _, _, color = GetItemQualityColor(item.quality)
-            AddButtonOnEnterTextTooltip(getglobal('TransmogLook' .. itemIndex .. 'Button'), color .. item.name)
+            AddButtonOnEnterTextTooltip(button, color .. item.name)
             if item.reset then
-                getglobal('TransmogLook' .. itemIndex .. 'ButtonRevert'):Show()
+                buttonRevert:Show()
             end
 
             self.ItemButtons[itemIndex]:Show()
@@ -1544,26 +1536,30 @@ function Transmog:availableTransmogs(InventorySlotId)
 
 end
 
+-- Optimized: Cache GetInventoryItemLink to avoid duplicate calls
 function Transmog:transmogStatus()
     local prev = self.equippedTransmogs or {}
     local newMap = {}
     local needRefresh = false
 
     for InventorySlotId, itemID in self.transmogStatusFromServer do
-        if itemID ~= 0 and GetInventoryItemLink('player', InventorySlotId) then
-            local _, _, eqItemLink = TransmogFrame_Find(GetInventoryItemLink('player', InventorySlotId), "(item:%d+:%d+:%d+:%d+)")
-            local eqItemId = self:IDFromLink(eqItemLink)
-            if eqItemId then
-                local transmogName = GetItemInfo(itemID)
-                if transmogName then
-                    newMap[eqItemId] = transmogName
-					Transmog.slotTransmogNames[InventorySlotId] = transmogName
-                else
-                    -- 物品信息未缓存：先触发缓存，并保留旧值，随后轻量重试
-                    self:cacheItem(itemID)
-                    needRefresh = true
-                    if prev[eqItemId] then
-                        newMap[eqItemId] = prev[eqItemId]
+        if itemID ~= 0 then
+            local itemLink = GetInventoryItemLink('player', InventorySlotId)
+            if itemLink then
+                local _, _, eqItemLink = TransmogFrame_Find(itemLink, "(item:%d+:%d+:%d+:%d+)")
+                local eqItemId = self:IDFromLink(eqItemLink)
+                if eqItemId then
+                    local transmogName = GetItemInfo(itemID)
+                    if transmogName then
+                        newMap[eqItemId] = transmogName
+                        Transmog.slotTransmogNames[InventorySlotId] = transmogName
+                    else
+                        -- 物品信息未缓存：先触发缓存，并保留旧值，随后轻量重试
+                        self:cacheItem(itemID)
+                        needRefresh = true
+                        if prev[eqItemId] then
+                            newMap[eqItemId] = prev[eqItemId]
+                        end
                     end
                 end
             end
@@ -1785,20 +1781,23 @@ if Transmog.tab == 'sets' and not newReset then
     end
 
     local setIndex = itemId
-    for _, setItemId in next, Transmog.availableSets[setIndex]['items'] do
-        local learned = false
-        -- 按页拥有集优先
-        if Transmog.ownedTransmogsPageTemp and Transmog.ownedTransmogsPageTemp[setItemId] then
-            learned = true
-        else
-            -- 退化：扫描当前会话获取到的 transmog 列表
-            for _, data in next, Transmog.currentTransmogsData do
-                for _, d in next, data do
-                    if d['id'] == setItemId then learned = true break end
-                end
-                if learned then break end
+    -- Optimized: Build lookup table from currentTransmogsData for O(1) access
+    local learnedItems = {}
+    if Transmog.ownedTransmogsPageTemp then
+        for id, _ in pairs(Transmog.ownedTransmogsPageTemp) do
+            learnedItems[id] = true
+        end
+    else
+        for _, data in next, Transmog.currentTransmogsData do
+            for _, d in next, data do
+                learnedItems[d['id']] = true
             end
         end
+    end
+    
+    for _, setItemId in next, Transmog.availableSets[setIndex]['items'] do
+        local learned = learnedItems[setItemId]
+        
         if learned then
             Transmog.availableSets[setIndex]['itemsExtended'] = Transmog.availableSets[setIndex]['itemsExtended'] or {}
             local ex = Transmog.availableSets[setIndex]['itemsExtended'][setItemId]
@@ -1817,12 +1816,14 @@ if Transmog.tab == 'sets' and not newReset then
                 local slotId = Transmog.invTypes[ex.slot]
                 local frame = Transmog:frameFromInvType(ex.slot)
 
-                if slotId and GetInventoryItemLink('player', slotId) then
-                    if Transmog.transmogStatusFromServer[slotId] ~= 0 then
-                        -- 已有幻化：跳过
-                    else
-                        local _, _, eqItemLink = TransmogFrame_Find(GetInventoryItemLink('player', slotId), "(item:%d+:%d+:%d+:%d+)")
-                        local equippedName = GetItemInfo(eqItemLink)
+                if slotId then
+                    local itemLink = GetInventoryItemLink('player', slotId)
+                    if itemLink then
+                        if Transmog.transmogStatusFromServer[slotId] ~= 0 then
+                            -- 已有幻化：跳过
+                        else
+                            local _, _, eqItemLink = TransmogFrame_Find(itemLink, "(item:%d+:%d+:%d+:%d+)")
+                            local equippedName = GetItemInfo(eqItemLink)
 
                         if equippedName ~= ex.name then
                             TransmogFramePlayerModel:TryOn(setItemId)
@@ -2068,13 +2069,20 @@ function Transmog:UnlockPlayerItems()
 
 end
 
+-- Optimized: Cache size when possible, faster iteration
 function Transmog:tableSize(t)
     if type(t) ~= 'table' then
         twfdebug('t not table')
         return 0
     end
+    -- For Lua 5.0, use table.getn for indexed tables when possible
+    local n = table.getn(t)
+    if n > 0 then
+        return n
+    end
+    -- Fallback to manual count for hash tables
     local size = 0
-    for i, d in t do
+    for k, v in pairs(t) do
         size = size + 1
     end
     return size
@@ -2303,9 +2311,15 @@ function Transmog_switchTab(to)
                 Transmog.ItemButtons[setIndex]:SetPoint("TOPLEFT", TransmogFrame, "TOPLEFT", 263 + col * 90, -105 - 120 * row)
                 Transmog.ItemButtons[setIndex].name = set.name
 
-                getglobal('TransmogLook' .. setIndex .. 'Button'):SetID(i)
-                getglobal('TransmogLook' .. setIndex .. 'ButtonRevert'):Hide()
-                getglobal('TransmogLook' .. setIndex .. 'ButtonCheck'):Hide()
+                -- Optimized: Cache getglobal results
+                local lookPrefix = 'TransmogLook' .. setIndex
+                local button = getglobal(lookPrefix .. 'Button')
+                local buttonRevert = getglobal(lookPrefix .. 'ButtonRevert')
+                local buttonCheck = getglobal(lookPrefix .. 'ButtonCheck')
+                
+                button:SetID(i)
+                buttonRevert:Hide()
+                buttonCheck:Hide()
 
                 Transmog.availableSets[i]['itemsExtended'] = Transmog.availableSets[i]['itemsExtended'] or {}
 
@@ -2344,11 +2358,11 @@ function Transmog_switchTab(to)
                 end
 
                 if founds == total then
-                    getglobal('TransmogLook' .. setIndex .. 'ButtonCheck'):Show()
+                    buttonCheck:Show()
                 end
 
                 AddButtonOnEnterTextTooltip(
-                    getglobal('TransmogLook' .. setIndex .. 'Button'),
+                    button,
                     set.name .. " " .. founds .. "/" .. total,
                     setItemsText
                 )
@@ -2512,6 +2526,8 @@ Transmog.applyTimer:SetScript("OnShow", function()
     Transmog.applyTimer.actionIndex = 0
 end)
 Transmog.applyTimer:SetScript("OnHide", function()
+    -- Reset actions table to prevent memory leak
+    Transmog.applyTimer.actions = {}
 end)
 
 Transmog.applyTimer.actions = {}
@@ -2582,6 +2598,9 @@ Transmog.itemAnimation:SetScript("OnHide", function()
     Transmog:aSend("GetTransmogStatus")
 
     Transmog:calculateCost(0)
+    
+    -- Clear animation frames to prevent memory leak
+    Transmog.itemAnimationFrames = {}
 end)
 
 Transmog.itemAnimationFrames = {}
@@ -2670,6 +2689,10 @@ Transmog.delayAddWonItem.data = {}
 
 Transmog.delayAddWonItem:SetScript("OnShow", function()
     this.startTime = GetTime()
+end)
+Transmog.delayAddWonItem:SetScript("OnHide", function()
+    -- Clear data table when hidden to prevent memory leak
+    Transmog.delayAddWonItem.data = {}
 end)
 Transmog.delayAddWonItem:SetScript("OnUpdate", function()
     local plus = 0.2
