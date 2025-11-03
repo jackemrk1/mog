@@ -1526,26 +1526,30 @@ function Transmog:availableTransmogs(InventorySlotId)
 
 end
 
+-- Optimized: Cache GetInventoryItemLink to avoid duplicate calls
 function Transmog:transmogStatus()
     local prev = self.equippedTransmogs or {}
     local newMap = {}
     local needRefresh = false
 
     for InventorySlotId, itemID in self.transmogStatusFromServer do
-        if itemID ~= 0 and GetInventoryItemLink('player', InventorySlotId) then
-            local _, _, eqItemLink = TransmogFrame_Find(GetInventoryItemLink('player', InventorySlotId), "(item:%d+:%d+:%d+:%d+)")
-            local eqItemId = self:IDFromLink(eqItemLink)
-            if eqItemId then
-                local transmogName = GetItemInfo(itemID)
-                if transmogName then
-                    newMap[eqItemId] = transmogName
-					Transmog.slotTransmogNames[InventorySlotId] = transmogName
-                else
-                    -- 物品信息未缓存：先触发缓存，并保留旧值，随后轻量重试
-                    self:cacheItem(itemID)
-                    needRefresh = true
-                    if prev[eqItemId] then
-                        newMap[eqItemId] = prev[eqItemId]
+        if itemID ~= 0 then
+            local itemLink = GetInventoryItemLink('player', InventorySlotId)
+            if itemLink then
+                local _, _, eqItemLink = TransmogFrame_Find(itemLink, "(item:%d+:%d+:%d+:%d+)")
+                local eqItemId = self:IDFromLink(eqItemLink)
+                if eqItemId then
+                    local transmogName = GetItemInfo(itemID)
+                    if transmogName then
+                        newMap[eqItemId] = transmogName
+                        Transmog.slotTransmogNames[InventorySlotId] = transmogName
+                    else
+                        -- 物品信息未缓存：先触发缓存，并保留旧值，随后轻量重试
+                        self:cacheItem(itemID)
+                        needRefresh = true
+                        if prev[eqItemId] then
+                            newMap[eqItemId] = prev[eqItemId]
+                        end
                     end
                 end
             end
@@ -1767,20 +1771,23 @@ if Transmog.tab == 'sets' and not newReset then
     end
 
     local setIndex = itemId
-    for _, setItemId in next, Transmog.availableSets[setIndex]['items'] do
-        local learned = false
-        -- 按页拥有集优先
-        if Transmog.ownedTransmogsPageTemp and Transmog.ownedTransmogsPageTemp[setItemId] then
-            learned = true
-        else
-            -- 退化：扫描当前会话获取到的 transmog 列表
-            for _, data in next, Transmog.currentTransmogsData do
-                for _, d in next, data do
-                    if d['id'] == setItemId then learned = true break end
-                end
-                if learned then break end
+    -- Optimized: Build lookup table from currentTransmogsData for O(1) access
+    local learnedItems = {}
+    if Transmog.ownedTransmogsPageTemp then
+        for id, _ in pairs(Transmog.ownedTransmogsPageTemp) do
+            learnedItems[id] = true
+        end
+    else
+        for _, data in next, Transmog.currentTransmogsData do
+            for _, d in next, data do
+                learnedItems[d['id']] = true
             end
         end
+    end
+    
+    for _, setItemId in next, Transmog.availableSets[setIndex]['items'] do
+        local learned = learnedItems[setItemId]
+        
         if learned then
             Transmog.availableSets[setIndex]['itemsExtended'] = Transmog.availableSets[setIndex]['itemsExtended'] or {}
             local ex = Transmog.availableSets[setIndex]['itemsExtended'][setItemId]
@@ -1799,12 +1806,14 @@ if Transmog.tab == 'sets' and not newReset then
                 local slotId = Transmog.invTypes[ex.slot]
                 local frame = Transmog:frameFromInvType(ex.slot)
 
-                if slotId and GetInventoryItemLink('player', slotId) then
-                    if Transmog.transmogStatusFromServer[slotId] ~= 0 then
-                        -- 已有幻化：跳过
-                    else
-                        local _, _, eqItemLink = TransmogFrame_Find(GetInventoryItemLink('player', slotId), "(item:%d+:%d+:%d+:%d+)")
-                        local equippedName = GetItemInfo(eqItemLink)
+                if slotId then
+                    local itemLink = GetInventoryItemLink('player', slotId)
+                    if itemLink then
+                        if Transmog.transmogStatusFromServer[slotId] ~= 0 then
+                            -- 已有幻化：跳过
+                        else
+                            local _, _, eqItemLink = TransmogFrame_Find(itemLink, "(item:%d+:%d+:%d+:%d+)")
+                            local equippedName = GetItemInfo(eqItemLink)
 
                         if equippedName ~= ex.name then
                             TransmogFramePlayerModel:TryOn(setItemId)
